@@ -8,6 +8,19 @@ onto LiteLLM `v1.98.0` to recover ChatGPT Responses output from streamed
 The final image is the unchanged official image plus four patched Python files.
 Build tools exist only in the intermediate stage.
 
+## Try it now
+
+For an existing ephemeral `litellm-database` Podman Quadlet, replace the image
+and persist the ChatGPT authentication directory with one named volume:
+
+```ini
+Image=ghcr.io/safrano9999/litellm-database-chatgpt-reasoning@sha256:b83d7037a3b10f6f75067ae0a8bd164318f12aeefc5f465481f72dcd70dd5bc7
+Volume=litellm-chatgpt-auth.volume:/root/.config/litellm/chatgpt:Z
+```
+
+Keep the existing LiteLLM database configuration and environment unchanged.
+No wrapper is required.
+
 ## Fixed inputs
 
 - Base: `ghcr.io/berriai/litellm-database:v1.98.0`

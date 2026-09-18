@@ -8,7 +8,7 @@ on:
       image_tag:
         description: "Container image tag"
         required: false
-        default: "v1.98.0-pr31332.1"
+        default: "v1.101.0-pr31332.1"
       push_latest:
         description: "Also publish :latest"
         required: true
@@ -39,7 +39,7 @@ permissions:
 jobs:
   build-test-publish:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
     env:
       IMAGE_NAME: ghcr.io/safrano9999/litellm-database-chatgpt-reasoning
       DOCKER_BUILD_RECORD_UPLOAD: "false"
@@ -58,8 +58,9 @@ jobs:
         run: |
           set -euo pipefail
           [[ "$IMAGE_TAG" =~ ^[A-Za-z0-9_.-]+$ ]]
-          containerfile_sha="$(sha256sum Containerfile | cut -d' ' -f1)"
-          patch_sha="$(sha256sum patches/v1.98.0-pr31332.patch | cut -d' ' -f1)"
+          python3 .github/scripts/verify-sources.py
+          containerfile_sha="$(sha256sum .github/scripts/Containerfile | cut -d' ' -f1)"
+          patch_sha="$(sha256sum patches/v1.101.0-pr31332.patch | cut -d' ' -f1)"
           source_epoch="$(git show -s --format=%ct "$GITHUB_SHA")"
           created="$(date -u -d "@$source_epoch" '+%Y-%m-%dT%H:%M:%SZ')"
           {
@@ -69,7 +70,6 @@ jobs:
             echo "created=$created"
             echo "tags<<EOF"
             echo "${IMAGE_NAME}:${IMAGE_TAG}"
-            [ "$PUSH_LATEST" != true ] || echo "${IMAGE_NAME}:latest"
             echo "EOF"
           } >> "$GITHUB_OUTPUT"
 
@@ -87,33 +87,34 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ github.token }}
 
-      - name: Build and publish
+      - name: Build candidate
         id: build
         uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
         env:
           SOURCE_DATE_EPOCH: ${{ steps.metadata.outputs.source_epoch }}
         with:
           context: .
-          file: ./Containerfile
+          file: .github/scripts/Containerfile
           platforms: linux/amd64
           pull: true
           no-cache: true
           push: true
           tags: ${{ steps.metadata.outputs.tags }}
           labels: |
+            io.safrano9999.build.commit=${{ github.sha }}
             org.opencontainers.image.title=LiteLLM Database ChatGPT Reasoning
-            org.opencontainers.image.description=LiteLLM Database v1.98.0 with the focused ChatGPT Responses output recovery from PR 31332
+            org.opencontainers.image.description=LiteLLM Database v1.101.0 with the focused ChatGPT Responses output recovery from PR 31332
             org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
             org.opencontainers.image.revision=${{ github.sha }}
             org.opencontainers.image.version=${{ inputs.image_tag }}
             org.opencontainers.image.created=${{ steps.metadata.outputs.created }}
-            org.opencontainers.image.base.name=ghcr.io/berriai/litellm-database:v1.98.0
-            org.opencontainers.image.base.digest=sha256:5ead13edd4efd89f32dab349c1f19447d395affca53f3aeae00f5e6e01b8c08d
+            org.opencontainers.image.base.name=ghcr.io/berriai/litellm-database:v1.101.0
+            org.opencontainers.image.base.digest=sha256:070df884f52600352a4aedda059180be141f3645c61c59b89b0ee35c17a4ea84
             io.github.safrano9999.containerfile.sha256=${{ steps.metadata.outputs.containerfile_sha }}
             io.github.safrano9999.backport-patch.sha256=${{ steps.metadata.outputs.patch_sha }}
             io.github.safrano9999.upstream-pr=https://github.com/BerriAI/litellm/pull/31332
-            io.github.safrano9999.upstream-commit=755a8b1e26224ae13cbf244bfe1b4b6077b98b61
-            io.github.safrano9999.upstream-patch.sha256=a3e0327491d7373ca08643dda6d6f38bf6365fa47d572b70d57546726ec19e7d
+            io.github.safrano9999.upstream-commit=f8126c76748498ba08f40df9f71fbebe84cf2387
+            io.github.safrano9999.upstream-patch.sha256=355b2ea1ba72b77461d372c2f372decc03c9a7fcc1eec5b157ae57e5378d2009
           provenance: mode=max
           sbom: true
 
@@ -124,26 +125,23 @@ jobs:
           subject-digest: ${{ steps.build.outputs.digest }}
           push-to-registry: true
 
-      - name: Verify patched runtime
-        shell: bash
+      - name: Verify official baseline and patched runtime
         env:
-          IMAGE_TAG: ${{ inputs.image_tag }}
+          CANDIDATE_DIGEST: ${{ steps.build.outputs.digest }}
           EXPECTED_CONTAINERFILE_SHA: ${{ steps.metadata.outputs.containerfile_sha }}
           EXPECTED_PATCH_SHA: ${{ steps.metadata.outputs.patch_sha }}
         run: |
           set -euo pipefail
-          image="${IMAGE_NAME}:${IMAGE_TAG}"
-          docker pull "$image"
-          docker run --rm --interactive --entrypoint python3 "$image" - <<'PY'
-          import inspect
-          from litellm.responses.streaming_iterator import BaseResponsesAPIStreamingIterator
-
-          source = inspect.getsource(BaseResponsesAPIStreamingIterator)
-          assert "_accumulate_streamed_output_item" in source
-          assert "_streamed_text_only_items" in source
-          PY
+          image="${IMAGE_NAME}@${CANDIDATE_DIGEST}"
+          python3 .github/scripts/verify-image.py "$image"
           test "$(docker inspect --format '{{ index .Config.Labels "io.github.safrano9999.containerfile.sha256" }}' "$image")" = "$EXPECTED_CONTAINERFILE_SHA"
           test "$(docker inspect --format '{{ index .Config.Labels "io.github.safrano9999.backport-patch.sha256" }}' "$image")" = "$EXPECTED_PATCH_SHA"
+
+      - name: Promote tested latest
+        if: ${{ inputs.push_latest }}
+        env:
+          CANDIDATE_DIGEST: ${{ steps.build.outputs.digest }}
+        run: docker buildx imagetools create --tag "${IMAGE_NAME}:latest" "${IMAGE_NAME}@${CANDIDATE_DIGEST}"
 
       - name: Publish verification summary
         shell: bash
@@ -161,5 +159,5 @@ jobs:
             echo "- Source commit: \`${GITHUB_SHA}\`"
             echo "- Containerfile SHA-256: \`${CONTAINERFILE_SHA}\`"
             echo "- Backport patch SHA-256: \`${PATCH_SHA}\`"
-            echo '- Base: `ghcr.io/berriai/litellm-database@sha256:5ead13edd4efd89f32dab349c1f19447d395affca53f3aeae00f5e6e01b8c08d`'
+            echo '- Base: `ghcr.io/berriai/litellm-database@sha256:070df884f52600352a4aedda059180be141f3645c61c59b89b0ee35c17a4ea84`'
           } >> "$GITHUB_STEP_SUMMARY"

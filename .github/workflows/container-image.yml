@@ -102,6 +102,8 @@ jobs:
           tags: ${{ steps.metadata.outputs.tags }}
           labels: |
             io.safrano9999.build.commit=${{ github.sha }}
+            io.safrano9999.build.source=29bf98358a94a2f6d7a8cdfc42bd3cae1d24d93f
+            io.safrano9999.build.inputs=99bda1b5a762b7e9520392918a89d65f6404cd4ba55c77b51c3f0e2b3d341ca9
             org.opencontainers.image.title=LiteLLM Database ChatGPT Reasoning
             org.opencontainers.image.description=LiteLLM Database v1.101.0 with the focused ChatGPT Responses output recovery from PR 31332
             org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}

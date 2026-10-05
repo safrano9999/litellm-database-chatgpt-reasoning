@@ -35,8 +35,8 @@ core=[c for c in baseline.iter('testcase') if c.get('name','').startswith('test_
 assert code==1 and len(core)==4,'Expected sync/async item/text regressions not reproduced'
 for case in core:
     failure=case.find('failure')
-    assert failure is not None and failure.get('type')=='ValueError','Baseline must reach the empty-output error'
-    assert 'Unknown items in responses API response: []' in failure.get('message',''),'Unexpected baseline failure'
+    assert failure is not None,'Baseline must reach the empty-output error'
+    assert failure.get('message','')=='ValueError: Unknown items in responses API response: []','Unexpected baseline failure'
 assert len(list(baseline.iter('failure')))==4,'An unrelated baseline control failed'
 assert not list(baseline.iter('error')),'Baseline must fail assertions, not setup/import'
 code,result=run(candidate,'patched',['tests/test_streaming_iterator_output_recovery.py','tests/test_chatgpt_responses_transformation.py','tests/test_chatgpt_stream_bridge.py'])

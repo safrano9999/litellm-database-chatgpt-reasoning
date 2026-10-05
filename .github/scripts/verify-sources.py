@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Reject source/metadata drift before building the pinned backport."""
+"""Reject source/metadata drift before building the pinned upstream patch."""
 import hashlib
 import json
 from pathlib import Path
@@ -10,6 +10,10 @@ for name,expected in [(m['runtime_patch'],m['runtime_patch_sha256']),
                       (m['upstream_diff'],m['patch_sha256'])]+[
                           ('tests/'+name,value) for name,value in m['test_sha256'].items()]:
     assert hashlib.sha256((root/name).read_bytes()).hexdigest()==expected,'Source hash changed: '+name
+upstream=(root/m['upstream_diff']).read_text()
+runtime=''.join('diff --git '+part for part in upstream.split('diff --git ')[1:]
+                if part.startswith('a/litellm/'))
+assert (root/m['runtime_patch']).read_text()==runtime,'Runtime patch differs from the original upstream runtime hunks'
 recipe=(root/'.github/scripts/Containerfile').read_text()
 # The updater retains the release tag alongside the same immutable digest.
 allowed_bases = {'FROM ' + m['base_image'] + suffix + '@' + m['base_digest']

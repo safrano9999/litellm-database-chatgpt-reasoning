@@ -30,11 +30,16 @@ def run(image, name, tests):
     report=ET.parse(reports/(name+'.xml')).getroot()
     return result.returncode,report
 
-code,baseline=run(base,'official-base',['tests/test_streaming_iterator_output_recovery.py'])
-core=[c for c in baseline.iter('testcase') if c.get('name')=='test_completed_response_output_backfilled_from_output_item_done']
-assert code==1 and len(core)==1 and core[0].find('failure') is not None,'Expected regression not reproduced on official base'
+code,baseline=run(base,'official-base',['tests/test_chatgpt_stream_bridge.py'])
+core=[c for c in baseline.iter('testcase') if c.get('name','').startswith('test_stream_bridge_recovers_empty_terminal_output[')]
+assert code==1 and len(core)==4,'Expected sync/async item/text regressions not reproduced'
+for case in core:
+    failure=case.find('failure')
+    assert failure is not None and failure.get('type')=='ValueError','Baseline must reach the empty-output error'
+    assert 'Unknown items in responses API response: []' in failure.get('message',''),'Unexpected baseline failure'
+assert len(list(baseline.iter('failure')))==4,'An unrelated baseline control failed'
 assert not list(baseline.iter('error')),'Baseline must fail assertions, not setup/import'
-code,result=run(candidate,'patched',['tests/test_streaming_iterator_output_recovery.py','tests/test_chatgpt_responses_transformation.py'])
+code,result=run(candidate,'patched',['tests/test_streaming_iterator_output_recovery.py','tests/test_chatgpt_responses_transformation.py','tests/test_chatgpt_stream_bridge.py'])
 assert code==0 and not list(result.iter('failure')) and not list(result.iter('error')),'Patched runtime regressions failed'
-assert len(list(result.iter('testcase')))>=15,'Missing upstream regression coverage'
+assert len(list(result.iter('testcase')))>=43,'Missing upstream or end-to-end bridge regression coverage'
 print(json.dumps({'status':'PASS','baseline_regression_reproduced':True,'patched_tests':len(list(result.iter('testcase')))}))

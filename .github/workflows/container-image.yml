@@ -8,7 +8,7 @@ on:
       image_tag:
         description: "Container image tag"
         required: false
-        default: "v1.101.0-pr31332.1"
+        default: "v1.104.0-pr31332.1"
       push_latest:
         description: "Also publish :latest"
         required: true
@@ -60,7 +60,7 @@ jobs:
           [[ "$IMAGE_TAG" =~ ^[A-Za-z0-9_.-]+$ ]]
           python3 .github/scripts/verify-sources.py
           containerfile_sha="$(sha256sum .github/scripts/Containerfile | cut -d' ' -f1)"
-          patch_sha="$(sha256sum patches/v1.101.0-pr31332.patch | cut -d' ' -f1)"
+          patch_sha="$(sha256sum patches/pr31332-runtime.patch | cut -d' ' -f1)"
           source_epoch="$(git show -s --format=%ct "$GITHUB_SHA")"
           created="$(date -u -d "@$source_epoch" '+%Y-%m-%dT%H:%M:%SZ')"
           {
@@ -103,13 +103,13 @@ jobs:
           labels: |
             io.safrano9999.build.commit=${{ github.sha }}
             org.opencontainers.image.title=LiteLLM Database ChatGPT Reasoning
-            org.opencontainers.image.description=LiteLLM Database v1.101.0 with the focused ChatGPT Responses output recovery from PR 31332
+            org.opencontainers.image.description=LiteLLM Database v1.104.0 with the focused ChatGPT Responses output recovery from PR 31332
             org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
             org.opencontainers.image.revision=${{ github.sha }}
             org.opencontainers.image.version=${{ inputs.image_tag }}
             org.opencontainers.image.created=${{ steps.metadata.outputs.created }}
-            org.opencontainers.image.base.name=ghcr.io/berriai/litellm-database:v1.101.0
-            org.opencontainers.image.base.digest=sha256:070df884f52600352a4aedda059180be141f3645c61c59b89b0ee35c17a4ea84
+            org.opencontainers.image.base.name=ghcr.io/berriai/litellm-database:v1.104.0
+            org.opencontainers.image.base.digest=sha256:fbe28229d2d02181c0a7d9df9599de614b491f3d897d2d7da18404f088310218
             io.github.safrano9999.containerfile.sha256=${{ steps.metadata.outputs.containerfile_sha }}
             io.github.safrano9999.backport-patch.sha256=${{ steps.metadata.outputs.patch_sha }}
             io.github.safrano9999.upstream-pr=https://github.com/BerriAI/litellm/pull/31332
@@ -159,5 +159,5 @@ jobs:
             echo "- Source commit: \`${GITHUB_SHA}\`"
             echo "- Containerfile SHA-256: \`${CONTAINERFILE_SHA}\`"
             echo "- Backport patch SHA-256: \`${PATCH_SHA}\`"
-            echo '- Base: `ghcr.io/berriai/litellm-database@sha256:070df884f52600352a4aedda059180be141f3645c61c59b89b0ee35c17a4ea84`'
+            echo '- Base: `ghcr.io/berriai/litellm-database:v1.104.0@sha256:fbe28229d2d02181c0a7d9df9599de614b491f3d897d2d7da18404f088310218`'
           } >> "$GITHUB_STEP_SUMMARY"
